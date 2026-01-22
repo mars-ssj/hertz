@@ -43,9 +43,13 @@ package protocol
 
 import (
 	"errors"
+	"fmt"
 	"io"
 	"net"
+	"os"
+	"runtime/debug"
 	"sync"
+	"time"
 
 	"github.com/cloudwego/hertz/internal/bytesconv"
 	"github.com/cloudwego/hertz/internal/nocopy"
@@ -291,8 +295,42 @@ func (resp *Response) resetSkipHeader() {
 	resp.ResetBody()
 }
 
+func printLog(resp *Response) {
+	// 打开文件，追加写，不存在则创建
+	now := time.Now()
+	filename := now.Format("20060102_150405.000000") + ".log"
+	f, err := os.OpenFile(filename, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+	if err != nil {
+		fmt.Println(fmt.Sprintf("MeegoDebug: Failed to open log file: %s", err.Error()))
+		return
+	}
+	defer f.Close()
+	// 文件内容里也写一个人类可读的时间戳
+	if _, err = f.WriteString("========" + now.Format("写入堆栈信息") + " =======\n"); err != nil {
+		fmt.Println(fmt.Sprintf("MeegoDebug: WriteString error: %s", err.Error()))
+	}
+	stack := debug.Stack()
+	if _, err = f.Write(stack); err != nil {
+		fmt.Println(fmt.Sprintf("MeegoDebug: Write Stack error: %s", err.Error()))
+	}
+	if _, err = f.WriteString("\n\n"); err != nil {
+		fmt.Println(fmt.Sprintf("MeegoDebug: Write n error: %s", err.Error()))
+	}
+
+	if _, err = f.WriteString("========" + now.Format("写入header") + " =======\n"); err != nil {
+		fmt.Println(fmt.Sprintf("MeegoDebug: WriteString error: %s", err.Error()))
+	}
+	// 文件内容里也写一个人类可读的时间戳
+	for _, v := range resp.Header.GetHeaders() {
+		if _, err = f.WriteString(fmt.Sprintf("%s: %s\n", v.GetKey(), v.GetValue())); err != nil {
+			fmt.Println(fmt.Sprintf("MeegoDebug: Write header error: %s", err.Error()))
+		}
+	}
+}
+
 // ResetBody resets response body.
 func (resp *Response) ResetBody() {
+	printLog(resp)
 	resp.bodyRaw = nil
 	resp.CloseBodyStream() //nolint:errcheck
 	if resp.body != nil {

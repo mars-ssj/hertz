@@ -1,4 +1,4 @@
-module github.com/cloudwego/hertz
+module github.com/mars-ssj/hertz
 
 go 1.19
 
